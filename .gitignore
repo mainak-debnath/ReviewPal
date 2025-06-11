@@ -1,0 +1,55 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+*/.venv/
+*/.env/
+review_agent
+
+
+# Distribution / packaging
+.eggs/
+*.egg-info/
+dist/
+build/
+wheels/
+
+# Installed packages
+lib/
+include/
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+nosetests.xml
+pylint.out
+*.py,cover
+
+# SCM metadata
+.git
+.svn
+
+# IDE / text editor
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+*.vscode/
+*.DS_Store
+
+# Logs and databases
+*.log
+*.sql
+*.sqlite
+
+# Temporary files
+*~
+
+# Secret keys
+.env
