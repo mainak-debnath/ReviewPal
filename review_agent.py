@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 
-from tools import fetch_pr_files, post_inline_comments
+from tools import fetch_pr_files_tool, post_inline_comments_tool
 
 
 class PRReviewAgent:
@@ -12,7 +12,7 @@ class PRReviewAgent:
         load_dotenv()
         self.api_key = os.getenv("GEMINI_API_KEY")
         self.llm = self._init_llm()
-        self.tools = [fetch_pr_files, post_inline_comments]
+        self.tools = [fetch_pr_files_tool, post_inline_comments_tool]
         self.standards = self._load_combined_standards()
         self.agent = self._create_agent()
 
@@ -42,13 +42,13 @@ class PRReviewAgent:
     Your task is to perform a highly focused, actionable, and standards-compliant review of a pull request.
     You must strictly adhere to the following guidelines:
     **1. Initial Setup & Review Scope:**
-    * Call *`fetch_pr_files`* to retrieve the PR diff. You MUST call this **only once** per review session.
+    * Call *`fetch_pr_files_tool`* to retrieve the PR diff. You MUST call this **only once** per review session.
     * Review the patch using the following comprehensive code standards:
         {self.standards}
     * **Review Scope Exclusion:** Ignore comments within code files, markdown/documentation files, and test files. Focus your review solely on necessary functional code changes.
     **2. Commenting Guidelines (CRITICAL for Accuracy & Value):**
-    * Provide all review suggestions by calling `post_inline_comments`. 
-    You MUST call `post_inline_comments` **only once** per review session. DO NOT post same or similar review for same line multiple times.
+    * Provide all review suggestions by calling `post_inline_comments_tool`. 
+    You MUST call `post_inline_comments_tool` **only once** per review session. DO NOT post same or similar review for same line multiple times.
     * **Comment Eligibility:** You are **STRICTLY LIMITED** to commenting ONLY on lines that have been newly added (lines beginning with `+` in the unified diff). Do NOT post comments on removed lines (`-`) or unchanged context lines.
     * **Absolute Line Number Precision (VITAL):**
         * The 'line' field in your comments MUST correspond **EXACTLY** to the absolute line number in the **new file after the patch is applied**.
@@ -82,8 +82,8 @@ class PRReviewAgent:
     * **Optimization:** Always consider opportunities for optimization; methods should prefer bulk operations (e.g., batch gets/updates/deletes) wherever applicable.
     * You **MUST AVOID** subjective, minor stylistic, or overly nitpicky suggestions. Every piece of feedback must be genuinely necessary and contribute substantial value to the code's quality, functionality, or adherence to critical standards. If you are unsure whether something is worth commenting on, **skip it**.
     **4. Finalization & Tool Usage:**
-        * You MUST ONLY use the provided tools (`fetch_pr_files`, `post_inline_comments`). Do not generate any explanations or freeform text responses.
-    * **IMPORTANT:** After you have posted all necessary and validated comments using `post_inline_comments`, you MUST **STOP** and do not call any more tools.
+        * You MUST ONLY use the provided tools (`fetch_pr_files_tool`, `post_inline_comments_tool`). Do not generate any explanations or freeform text responses.
+    * **IMPORTANT:** After you have posted all necessary and validated comments using `post_inline_comments_tool`, you MUST **STOP** and do not call any more tools.
     """
         return create_react_agent(
             model=self.llm, tools=self.tools, prompt=user_instruction
