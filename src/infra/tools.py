@@ -128,3 +128,25 @@ def post_inline_comments_tool(comments: List[Comment]) -> str:
     if reviewer:
         return reviewer.post_inline_comments(comments)
     return "Reviewer not available. Cannot post comments."
+
+
+# --- Direct CLI Testing Block ---
+
+if __name__ == "__main__":
+    logger.info("--- CLI: Testing GitHubPRReviewer ---")
+    reviewer = get_reviewer()
+    if reviewer:
+        files = reviewer.fetch_pr_files()
+        logger.info(
+            f"Fetched {len(files)} files from PR."
+        ) if files else logger.warning("No files fetched.")
+
+        example_comments: List[Comment] = [
+            {"path": "README.md", "line": 1, "body": "Sample test comment."},
+            {"path": "README.md", "line": 2, "body": "Another sample comment."},
+        ]
+        # Uncomment below to actually post to GitHub (be careful!)
+        # result = reviewer.post_inline_comments(example_comments)
+        # logger.info(result)
+    else:
+        logger.error("GitHubPRReviewer not initialized. Check .env values.")

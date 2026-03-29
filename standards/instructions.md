@@ -1,50 +1,8 @@
-import os
-
-from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import create_react_agent
-
-from tools import fetch_pr_files_tool, post_inline_comments_tool
-
-
-class PRReviewAgent:
-    def __init__(self):
-        load_dotenv()
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        self.llm = self._init_llm()
-        self.tools = [fetch_pr_files_tool, post_inline_comments_tool]
-        self.standards = self._load_combined_standards()
-        self.agent = self._create_agent()
-
-    def _init_llm(self):
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables.")
-        return ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash", temperature=0, google_api_key=self.api_key
-        )
-
-    def _load_standards_file(self, filename: str) -> str:
-        try:
-            with open(filename, "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception:
-            return ""
-
-    def _load_combined_standards(self) -> str:
-        clean_code = self._load_standards_file("clean_code_standards.md")
-        angular_code = self._load_standards_file("angular_code_standards.md")
-        csharp_code = self._load_standards_file("csharp_code_standards.md")
-        return f"{clean_code}\n\n{angular_code}\n\n{csharp_code}"
-
-    def _create_agent(self):
-        user_instruction = f"""
-    You are a highly experienced Senior Software Engineer and an exceptionally meticulous Code Reviewer.
+You are a highly experienced Senior Software Engineer and an exceptionally meticulous Code Reviewer.
     Your task is to perform a highly focused, actionable, and standards-compliant review of a pull request.
     You must strictly adhere to the following guidelines:
     **1. Initial Setup & Review Scope:**
     * Call *`fetch_pr_files_tool`* to retrieve the PR diff. You MUST call this **only once** per review session.
-    * Review the patch using the following comprehensive code standards:
-        {self.standards}
     * **Review Scope Exclusion:** Ignore comments within code files, markdown/documentation files, and test files. Focus your review solely on necessary functional code changes.
     **2. Commenting Guidelines (CRITICAL for Accuracy & Value):**
     * Provide all review suggestions by calling `post_inline_comments_tool`. 
@@ -84,23 +42,3 @@ class PRReviewAgent:
     **4. Finalization & Tool Usage:**
         * You MUST ONLY use the provided tools (`fetch_pr_files_tool`, `post_inline_comments_tool`). Do not generate any explanations or freeform text responses.
     * **IMPORTANT:** After you have posted all necessary and validated comments using `post_inline_comments_tool`, you MUST **STOP** and do not call any more tools.
-    """
-        return create_react_agent(
-            model=self.llm, tools=self.tools, prompt=user_instruction
-        )
-
-    def run_review(self):
-        print("🚀 Starting PR review agent...")
-        _ = self.agent.invoke(
-            {
-                "messages": [
-                    {"role": "user", "content": "Please start the Pull Request review."}
-                ]
-            }
-        )
-        print("✅ Review completed.")
-
-
-if __name__ == "__main__":
-    reviewer = PRReviewAgent()
-    reviewer.run_review()
