@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 # from langgraph.prebuilt import create_react_agent
-from tools import fetch_pr_files_tool, post_inline_comments_tool
+from src.infra.tools import fetch_pr_files_tool, post_inline_comments_tool
 
 
 class PRReviewAgent:
