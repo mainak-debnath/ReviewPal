@@ -1,8 +1,7 @@
-from processors import chunk_diffs
-from tools import fetch_pr_files_tool, post_inline_comments_tool
-from validator import validate_comments
-
-from agents.review_agent import PRReviewAgent
+from src.agents.review_agent import PRReviewAgent
+from src.core.processors import chunk_diffs
+from src.core.validator import validate_comments
+from src.infra.tools import fetch_pr_files_tool, post_inline_comments_tool
 
 
 class ReviewPipeline:
