@@ -20,7 +20,7 @@ class PRReviewAgent:
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY not found in environment variables.")
         return ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash", temperature=0, google_api_key=self.api_key
+            model="gemini-2.5-flash", temperature=0, google_api_key=self.api_key
         )
 
     def _load_standards_file(self, filename: str) -> str:

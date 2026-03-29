@@ -20,7 +20,7 @@ def validate_comments(comments, chunks):
 
         for line_data in chunk["lines"]:
             if line_data["type"] == "added":
-                valid_lines_map[filename].add(line_data["ln"])  # ✅ FIXED
+                valid_lines_map[filename].add(line_data["ln"])
 
     for c in comments:
         # --- Normalize ---
