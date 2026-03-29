@@ -2,7 +2,7 @@ from processors import chunk_diffs
 from tools import fetch_pr_files_tool, post_inline_comments_tool
 from validator import validate_comments
 
-from review_agent import PRReviewAgent
+from agents.review_agent import PRReviewAgent
 
 
 class ReviewPipeline:
