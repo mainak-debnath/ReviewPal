@@ -25,6 +25,19 @@ jobs:
       - name: Set PYTHONPATH
         run: echo "PYTHONPATH=." >> $GITHUB_ENV
 
+      - name: Cache Chroma DB
+        uses: actions/cache@v3
+        with:
+          path: ./db
+          key: chroma-${{ github.repository }}-${{ github.ref }}
+          restore-keys: |
+            chroma-${{ github.repository }}-
+
+      - name: Build Vector Index (RAG Setup)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/index_repo.py --path . --repo-id ${{ github.repository }} --standards-path ./standards
+
       - name: Run AI Review
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
