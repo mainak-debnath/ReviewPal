@@ -18,7 +18,7 @@ class CodeRetriever:
         )
 
     def index_repository(self, path: str, repo_id: str):
-        print(f"🧹 Cleaning up old indices for {repo_id}...")
+        print(f"Cleaning up old indices for {repo_id}...")
         self.db.delete(where={"repo_id": repo_id})
 
         exclude_patterns = [
@@ -42,7 +42,7 @@ class CodeRetriever:
             doc.metadata["lang"] = normalize_lang(ext)
             doc.metadata["repo_id"] = repo_id
         self.db.add_documents(docs)
-        print(f"✅ Indexed {len(docs)} code chunks for {repo_id}")
+        print(f"Indexed {len(docs)} code chunks for {repo_id}")
 
     def get_relevant_context(self, query: str, file_ext: str, repo_id: str):
         lang = normalize_lang(file_ext)

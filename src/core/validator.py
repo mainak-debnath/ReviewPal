@@ -38,12 +38,12 @@ def validate_comments(comments, chunks):
             continue
 
         if filename not in valid_lines_map:
-            print(f"⚠️ Dropping: File {filename} not in PR.")
+            print(f"Dropping: File {filename} not in PR.")
             continue
 
         # --- Core validation ---
         if line_num not in valid_lines_map[filename]:
-            print(f"⚠️ Dropping: Line {line_num} in {filename} is not an added line.")
+            print(f"Dropping: Line {line_num} in {filename} is not an added line.")
             continue
 
         # --- Deduplication ---

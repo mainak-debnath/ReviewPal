@@ -11,7 +11,7 @@ class ReviewPipeline:
         self.reviewer = PRReviewAgent()
 
     def run(self):
-        print("🚀 Starting PR review pipeline...")
+        print("Starting PR review pipeline...")
 
         # Step 1: Fetch PR files
         files = fetch_pr_files_tool.invoke({})
@@ -25,7 +25,7 @@ class ReviewPipeline:
         all_comments = []
 
         # Step 3: Review each chunk
-        print(f"🧵 Processing {len(chunks)} chunks in parallel...")
+        print(f"Processing {len(chunks)} chunks in parallel...")
 
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = [
@@ -39,7 +39,7 @@ class ReviewPipeline:
                 try:
                     all_comments.extend(future.result())
                 except Exception as e:
-                    print("❌ Error:", e)
+                    print("Error:", e)
 
         # Step 4: Validate comments
         valid_comments = validate_comments(all_comments, chunks)
@@ -47,7 +47,7 @@ class ReviewPipeline:
         # Step 5: Post comments
         result = post_inline_comments_tool.invoke({"comments": valid_comments})
 
-        print("✅ Review completed:", result)
+        print("Review completed:", result)
 
 
 if __name__ == "__main__":

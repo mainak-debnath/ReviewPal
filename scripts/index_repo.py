@@ -39,29 +39,29 @@ def main():
     standards_path = os.path.abspath(args.standards_path)
     repo_id = args.repo_id
 
-    print(f"🚀 Starting RAG Indexing for repository: {repo_id}")
-    print(f"📂 Code path: {repo_path}")
-    print(f"📄 Standards path: {standards_path}\n")
+    print(f"Starting RAG Indexing for repository: {repo_id}")
+    print(f"Code path: {repo_path}")
+    print(f"Standards path: {standards_path}\n")
 
     # 1. Index the Codebase
-    print("⏳ Indexing source code...")
+    print("Indexing source code...")
     try:
         code_retriever = CodeRetriever()
         code_retriever.index_repository(path=repo_path, repo_id=repo_id)
     except Exception as e:
-        print(f"❌ Failed to index code: {e}")
+        print(f"Failed to index code: {e}")
         sys.exit(1)
 
     # 2. Index the Coding Standards
-    print("\n⏳ Indexing coding standards...")
+    print("\nIndexing coding standards...")
     try:
         standards_retriever = StandardsRetriever()
         standards_retriever.index_standards(path=standards_path, repo_id=repo_id)
     except Exception as e:
-        print(f"❌ Failed to index standards: {e}")
+        print(f"Failed to index standards: {e}")
         sys.exit(1)
 
-    print("\n✅ Indexing complete! The Vector DB is ready for reviews.")
+    print("\nIndexing complete! The Vector DB is ready for reviews.")
 
 
 if __name__ == "__main__":

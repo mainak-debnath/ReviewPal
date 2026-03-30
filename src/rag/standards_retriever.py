@@ -22,13 +22,13 @@ class StandardsRetriever:
 
     def index_standards(self, path: str, repo_id: str):
         if not os.path.exists(path):
-            print(f"⚠️ Standards path '{path}' not found.")
+            print(f"Standards path '{path}' not found.")
             return
 
         docs_to_add = []
         seen_files = set()
 
-        print(f"🔍 Checking standards for repo: {repo_id}")
+        print(f"Checking standards for repo: {repo_id}")
 
         for file in os.listdir(path):
             if file.startswith(".") or not file.endswith(".md"):
@@ -49,10 +49,9 @@ class StandardsRetriever:
                 existing_hash = existing["metadatas"][0].get("content_hash")
 
                 if existing_hash == content_hash:
-                    # ✅ Skip unchanged
                     continue
 
-                # 🔥 Delete outdated version
+                # Delete outdated version
                 self.db.delete(where={"repo_id": repo_id, "source": file})
 
             # Language inference
@@ -84,9 +83,9 @@ class StandardsRetriever:
                 texts=[d["content"] for d in docs_to_add],
                 metadatas=[d["metadata"] for d in docs_to_add],
             )
-            print(f"✅ Indexed {len(docs_to_add)} updated/new standard files.")
+            print(f"Indexed {len(docs_to_add)} updated/new standard files.")
         else:
-            print("✅ No changes detected in standards.")
+            print("No changes detected in standards.")
 
         self._cleanup_deleted_files(repo_id, seen_files)
 
@@ -104,7 +103,7 @@ class StandardsRetriever:
                     print(f"🧹 Removed deleted standard: {source}")
 
         except Exception as e:
-            print(f"⚠️ Cleanup skipped: {e}")
+            print(f"Cleanup skipped: {e}")
 
     def get_relevant_rules(self, query: str, file_ext: str, repo_id: str):
         """
