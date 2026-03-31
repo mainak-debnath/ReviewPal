@@ -3,7 +3,7 @@ import os
 
 from langchain_chroma import Chroma
 
-from rag.vector_store import get_embeddings, normalize_lang
+from src.rag.vector_store import get_embeddings, normalize_lang
 
 
 def get_content_hash(content: str) -> str:
