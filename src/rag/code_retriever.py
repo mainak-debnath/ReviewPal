@@ -1,7 +1,7 @@
 import os
 
 from langchain_chroma import Chroma
-from langchain_community.document_loaders import GenericLoader
+from langchain_community.document_loaders.generic import GenericLoader
 from langchain_community.document_loaders.parsers import LanguageParser
 
 from rag.vector_store import get_embeddings, normalize_lang
