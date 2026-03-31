@@ -19,5 +19,5 @@ def normalize_lang(ext: str) -> str:
 
 def get_embeddings():
     return GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001", google_api_key=os.getenv("GEMINI_API_KEY")
+        model="models/text-embedding-004", google_api_key=os.getenv("GEMINI_API_KEY")
     )
