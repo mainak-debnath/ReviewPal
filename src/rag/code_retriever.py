@@ -19,7 +19,10 @@ class CodeRetriever:
 
     def index_repository(self, path: str, repo_id: str):
         print(f"Cleaning up old indices for {repo_id}...")
-        self.db.delete(where={"repo_id": repo_id})
+        existing = self.db.get(where={"repo_id": repo_id})
+        ids = existing.get("ids", [])
+        if ids:
+            self.db.delete(ids=ids)
 
         exclude_patterns = [
             "**/node_modules/**",

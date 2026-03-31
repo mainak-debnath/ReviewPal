@@ -51,8 +51,10 @@ class StandardsRetriever:
                 if existing_hash == content_hash:
                     continue
 
-                # Delete outdated version
-                self.db.delete(where={"repo_id": repo_id, "source": file})
+                existing = self.db.get(where={"repo_id": repo_id})
+                ids = existing.get("ids", [])
+                if ids:
+                    self.db.delete(ids=ids)
 
             # Language inference
             filename_lower = file.lower()
