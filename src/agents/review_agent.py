@@ -3,11 +3,10 @@ import os
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from rag.code_retriever import CodeRetriever
-from rag.standards_retriever import StandardsRetriever
-
 # from langgraph.prebuilt import create_react_agent
 from src.infra.tools import fetch_pr_files_tool, post_inline_comments_tool
+from src.rag.code_retriever import CodeRetriever
+from src.rag.standards_retriever import StandardsRetriever
 
 
 class PRReviewAgent:
