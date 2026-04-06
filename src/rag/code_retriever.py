@@ -51,7 +51,7 @@ class CodeRetriever:
         lang = normalize_lang(file_ext)
 
         results = self.db.similarity_search(
-            query, k=3, filter={"lang": lang, "repo_id": repo_id}
+            query, k=3, filter={"$and": [{"lang": lang}, {"repo_id": repo_id}]}
         )
 
         if not results:

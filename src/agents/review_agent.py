@@ -10,7 +10,7 @@ from src.rag.standards_retriever import StandardsRetriever
 
 
 class PRReviewAgent:
-    def __init__(self):
+    def __init__(self, repo_id: str):
         load_dotenv()
         self.api_key = os.getenv("GEMINI_API_KEY")
         self.llm = self._init_llm()
@@ -18,6 +18,7 @@ class PRReviewAgent:
         self.standards = self._load_combined_standards()
         self.code_retriever = CodeRetriever()
         self.standards_retriever = StandardsRetriever()
+        self.repo_id = repo_id
         # self.agent = self._create_agent()
 
     def _init_llm(self):
@@ -71,9 +72,13 @@ class PRReviewAgent:
         file_ext = os.path.splitext(file_path)[1]
 
         # Extract added + context lines
-        added_lines = [l["content"] for l in diff_lines if l["type"] == "added"]
+        added_lines = [
+            line["content"] for line in diff_lines if line["type"] == "added"
+        ]
 
-        context_lines = [l["content"] for l in diff_lines if l["type"] == "context"]
+        context_lines = [
+            line["content"] for line in diff_lines if line["type"] == "context"
+        ]
 
         # If no meaningful code changes → skip
         if not added_lines:
@@ -87,8 +92,12 @@ class PRReviewAgent:
         Context:
         {" ".join(context_lines)}
         """
-        relevant_code = self.code_retriever.get_relevant_context(query, file_ext)
-        relevant_rules = self.standards_retriever.get_relevant_rules(query)
+        relevant_code = self.code_retriever.get_relevant_context(
+            query, file_ext, self.repo_id
+        )
+        relevant_rules = self.standards_retriever.get_relevant_rules(
+            query, file_ext, self.repo_id
+        )
 
         # Format diff
         formatted_diff = "\n".join(

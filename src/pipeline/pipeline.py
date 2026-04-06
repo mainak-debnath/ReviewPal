@@ -1,4 +1,7 @@
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from dotenv import load_dotenv
 
 from src.agents.review_agent import PRReviewAgent
 from src.core.processors import chunk_diffs
@@ -8,7 +11,12 @@ from src.infra.tools import fetch_pr_files_tool, post_inline_comments_tool
 
 class ReviewPipeline:
     def __init__(self):
-        self.reviewer = PRReviewAgent()
+        load_dotenv()
+        self.repo_id = os.getenv("GITHUB_REPO")
+        if not self.repo_id:
+            raise ValueError("GITHUB_REPO not set")
+
+        self.reviewer = PRReviewAgent(repo_id=self.repo_id)
 
     def run(self):
         print("Starting PR review pipeline...")
