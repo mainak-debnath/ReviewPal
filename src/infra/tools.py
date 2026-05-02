@@ -1,23 +1,22 @@
+from __future__ import annotations
+
 import logging
-import os
-from typing import Dict, List, Optional
+from typing import Any
 
 import httpx
-from dotenv import load_dotenv
 from langchain_core.tools import tool
 from typing_extensions import TypedDict
 
-# --- Load environment variables ---
-load_dotenv()
+from src.core.config import load_settings
+from src.core.models import ReviewComment
 
-# --- Setup logging ---
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-# --- TypedDict for inline comments ---
-class Comment(TypedDict):
+class PostedComment(TypedDict):
     path: str
     line: int
     body: str
@@ -41,34 +40,52 @@ class GitHubPRReviewer:
         self.base_url = (
             f"https://api.github.com/repos/{self.repo}/pulls/{self.pr_number}"
         )
+        self.timeout = httpx.Timeout(30.0, connect=10.0)
 
     @property
-    def headers(self) -> Dict[str, str]:
+    def headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self.token}",
             "Accept": "application/vnd.github+json",
         }
 
-    def fetch_pr_files(self) -> List[Dict[str, str]]:
+    def fetch_pr_files(self) -> list[dict[str, Any]]:
         """Fetches PR files with their patches."""
+        files: list[dict[str, Any]] = []
+        page = 1
+
         try:
-            response = httpx.get(f"{self.base_url}/files", headers=self.headers)
-            response.raise_for_status()
-            try:
-                files = response.json()
-                return [
-                    {"filename": f["filename"], "patch": f.get("patch", "")}
-                    for f in files
-                    if f.get("patch")
-                ]
-            except ValueError:
-                logger.error("Failed to parse JSON response while fetching files.")
-                return []
-        except httpx.RequestError as e:
-            logger.error(f"Error fetching PR files: {e}")
+            with httpx.Client(timeout=self.timeout) as client:
+                while True:
+                    response = client.get(
+                        f"{self.base_url}/files",
+                        headers=self.headers,
+                        params={"page": page, "per_page": 100},
+                    )
+                    response.raise_for_status()
+                    batch = response.json()
+                    if not batch:
+                        break
+
+                    files.extend(
+                        {
+                            "filename": item["filename"],
+                            "patch": item.get("patch", ""),
+                            "status": item.get("status", ""),
+                        }
+                        for item in batch
+                        if item.get("patch")
+                    )
+                    if len(batch) < 100:
+                        break
+                    page += 1
+        except httpx.HTTPError as exc:
+            logger.error("Error fetching PR files: %s", exc)
             return []
 
-    def post_inline_comments(self, comments: List[Comment]) -> str:
+        return files
+
+    def post_inline_comments(self, comments: list[ReviewComment]) -> str:
         """Posts a batch of inline comments as a GitHub PR review."""
         if not comments:
             return "No comments to post."
@@ -79,36 +96,41 @@ class GitHubPRReviewer:
         review_payload = {
             "body": "AI Code Review",
             "event": "COMMENT",
-            "comments": comments,
+            "comments": [format_comment_for_github(comment) for comment in comments],
         }
         try:
-            response = httpx.post(review_url, headers=self.headers, json=review_payload)
-            response.raise_for_status()
+            with httpx.Client(timeout=self.timeout) as client:
+                response = client.post(
+                    review_url, headers=self.headers, json=review_payload
+                )
+                response.raise_for_status()
             return "Inline comments posted successfully."
-        except httpx.RequestError as e:
-            logger.error(f"Failed to post comments: {e}")
+        except httpx.HTTPError as exc:
+            logger.error("Failed to post comments: %s", exc)
             return "Failed to post comments."
-        except ValueError:
-            logger.error("Error decoding JSON response when posting comments.")
-            return "Error decoding JSON response when posting comments."
 
 
-# --- Lazy Instantiation Helper ---
-def get_reviewer() -> Optional[GitHubPRReviewer]:
+def format_comment_for_github(comment: ReviewComment) -> PostedComment:
+    return {
+        "path": comment.path,
+        "line": comment.line,
+        "body": comment.body,
+    }
+
+
+def get_reviewer() -> GitHubPRReviewer | None:
+    settings = load_settings()
     try:
         return GitHubPRReviewer(
-            os.getenv("TOKEN_GITHUB"), os.getenv("GITHUB_REPO"), os.getenv("PR_NUMBER")
+            settings.github_token, settings.github_repo, settings.pr_number
         )
-    except ValueError as e:
-        logger.error(f"GitHubPRReviewer initialization failed: {e}")
+    except ValueError as exc:
+        logger.error("GitHubPRReviewer initialization failed: %s", exc)
         return None
 
 
-# --- LangChain Tool Wrappers ---
-
-
 @tool
-def fetch_pr_files_tool() -> List[Dict[str, str]]:
+def fetch_pr_files_tool() -> list[dict[str, Any]]:
     """
     LangChain tool to fetch PR files and their patches.
     """
@@ -120,7 +142,7 @@ def fetch_pr_files_tool() -> List[Dict[str, str]]:
 
 
 @tool
-def post_inline_comments_tool(comments: List[Comment]) -> str:
+def post_inline_comments_tool(comments: list[ReviewComment]) -> str:
     """
     LangChain tool to post inline review comments to a PR.
     """
@@ -128,25 +150,3 @@ def post_inline_comments_tool(comments: List[Comment]) -> str:
     if reviewer:
         return reviewer.post_inline_comments(comments)
     return "Reviewer not available. Cannot post comments."
-
-
-# --- Direct CLI Testing Block ---
-
-if __name__ == "__main__":
-    logger.info("--- CLI: Testing GitHubPRReviewer ---")
-    reviewer = get_reviewer()
-    if reviewer:
-        files = reviewer.fetch_pr_files()
-        logger.info(
-            f"Fetched {len(files)} files from PR."
-        ) if files else logger.warning("No files fetched.")
-
-        example_comments: List[Comment] = [
-            {"path": "README.md", "line": 1, "body": "Sample test comment."},
-            {"path": "README.md", "line": 2, "body": "Another sample comment."},
-        ]
-        # Uncomment below to actually post to GitHub (be careful!)
-        # result = reviewer.post_inline_comments(example_comments)
-        # logger.info(result)
-    else:
-        logger.error("GitHubPRReviewer not initialized. Check .env values.")
