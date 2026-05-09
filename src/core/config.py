@@ -36,6 +36,21 @@ class Settings(BaseModel):
         ge=0.0,
         le=1.0,
     )
+    code_chunk_size_lines: int = Field(
+        default_factory=lambda: int(os.getenv("CODE_CHUNK_SIZE_LINES", "60")),
+        ge=10,
+        le=400,
+    )
+    code_chunk_overlap_lines: int = Field(
+        default_factory=lambda: int(os.getenv("CODE_CHUNK_OVERLAP_LINES", "12")),
+        ge=0,
+        le=200,
+    )
+    max_chunks_per_file: int = Field(
+        default_factory=lambda: int(os.getenv("MAX_CHUNKS_PER_FILE", "12")),
+        ge=1,
+        le=200,
+    )
 
     def require(self, *fields: str) -> None:
         missing = [field for field in fields if not getattr(self, field)]
