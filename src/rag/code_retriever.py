@@ -8,7 +8,8 @@ from langchain_chroma import Chroma
 from langchain_community.document_loaders.generic import GenericLoader
 from langchain_community.document_loaders.parsers import LanguageParser
 
-from src.core.config import DB_DIR
+from src.core.config import DB_DIR, load_settings
+from src.rag.indexing import batched, run_rate_limited_write, sleep_between_batches
 from src.rag.vector_store import get_embeddings, normalize_lang
 
 
@@ -18,6 +19,7 @@ def get_content_hash(content: str) -> str:
 
 class CodeRetriever:
     def __init__(self):
+        self.settings = load_settings()
         self.embeddings = get_embeddings()
 
         self.db = Chroma(
@@ -45,7 +47,7 @@ class CodeRetriever:
 
         docs = loader.load()
         seen_sources: set[str] = set()
-        added_or_updated = 0
+        docs_to_add = []
 
         for doc in docs:
             source = _normalize_source(path, doc.metadata["source"])
@@ -68,8 +70,9 @@ class CodeRetriever:
             doc.metadata["lang"] = normalize_lang(ext)
             doc.metadata["repo_id"] = repo_id
             doc.metadata["content_hash"] = content_hash
-            self.db.add_documents([doc])
-            added_or_updated += 1
+            docs_to_add.append(doc)
+
+        added_or_updated = self._add_documents_in_batches(docs_to_add)
 
         self._cleanup_deleted_sources(repo_id, seen_sources)
         print(f"Indexed {added_or_updated} updated/new code documents for {repo_id}")
@@ -101,6 +104,17 @@ class CodeRetriever:
         ]
         if stale_ids:
             self.db.delete(ids=stale_ids)
+
+    def _add_documents_in_batches(self, docs_to_add: list) -> int:
+        if not docs_to_add:
+            return 0
+
+        total_written = 0
+        for batch in batched(docs_to_add, self.settings.indexing_batch_size):
+            run_rate_limited_write(lambda batch=batch: self.db.add_documents(batch))
+            total_written += len(batch)
+            sleep_between_batches()
+        return total_written
 
 
 def _normalize_source(root_path: str, source: str) -> str:
