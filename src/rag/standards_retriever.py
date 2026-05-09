@@ -43,7 +43,9 @@ class StandardsRetriever:
 
             content_hash = get_content_hash(content)
             seen_files.add(file)
-            existing = self.db.get(where={"repo_id": repo_id, "source": file})
+            existing = self.db.get(
+                where={"$and": [{"repo_id": repo_id}, {"source": file}]}
+            )
 
             if existing.get("metadatas"):
                 existing_hash = existing["metadatas"][0].get("content_hash")

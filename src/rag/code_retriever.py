@@ -52,7 +52,9 @@ class CodeRetriever:
             seen_sources.add(source)
             ext = os.path.splitext(source)[1]
             content_hash = get_content_hash(doc.page_content)
-            existing = self.db.get(where={"repo_id": repo_id, "source": source})
+            existing = self.db.get(
+                where={"$and": [{"repo_id": repo_id}, {"source": source}]}
+            )
 
             if existing.get("metadatas"):
                 existing_hash = existing["metadatas"][0].get("content_hash")
