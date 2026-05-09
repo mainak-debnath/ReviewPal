@@ -5,10 +5,16 @@ import os
 from pathlib import Path
 
 from langchain_chroma import Chroma
-from langchain_community.document_loaders.generic import GenericLoader
-from langchain_community.document_loaders.parsers import LanguageParser
+from langchain_core.documents import Document
 
-from src.core.config import DB_DIR
+from src.core.config import DB_DIR, load_settings
+from src.rag.chunking import (
+    build_chunked_documents,
+    dedupe_documents,
+    format_retrieved_document,
+    load_supported_source_files,
+    score_same_file_chunk,
+)
 from src.rag.vector_store import get_embeddings, normalize_lang
 
 
@@ -18,6 +24,7 @@ def get_content_hash(content: str) -> str:
 
 class CodeRetriever:
     def __init__(self):
+        self.settings = load_settings()
         self.embeddings = get_embeddings()
 
         self.db = Chroma(
@@ -27,25 +34,9 @@ class CodeRetriever:
         )
 
     def index_repository(self, path: str, repo_id: str):
-        exclude_patterns = [
-            "**/node_modules/**",
-            "**/dist/**",
-            "**/build/**",
-            "**/.git/**",
-            "**/venv/**",
-            "**/__pycache__/**",
-        ]
-        loader = GenericLoader.from_filesystem(
-            path,
-            glob="**/*",
-            suffixes=[".py", ".ts", ".tsx", ".js", ".cs"],
-            exclude=exclude_patterns,
-            parser=LanguageParser(),
-        )
-
-        docs = loader.load()
+        docs = load_supported_source_files(path)
         seen_sources: set[str] = set()
-        added_or_updated = 0
+        docs_to_add: list[Document] = []
 
         for doc in docs:
             source = _normalize_source(path, doc.metadata["source"])
@@ -64,21 +55,51 @@ class CodeRetriever:
                 if existing_ids:
                     self.db.delete(ids=existing_ids)
 
-            doc.metadata["source"] = source
-            doc.metadata["lang"] = normalize_lang(ext)
-            doc.metadata["repo_id"] = repo_id
-            doc.metadata["content_hash"] = content_hash
-            self.db.add_documents([doc])
-            added_or_updated += 1
+            chunk_documents = build_chunked_documents(
+                source=source,
+                content=doc.page_content,
+                lang=normalize_lang(ext),
+                repo_id=repo_id,
+                chunk_size_lines=self.settings.code_chunk_size_lines,
+                chunk_overlap_lines=self.settings.code_chunk_overlap_lines,
+                max_chunks_per_file=self.settings.max_chunks_per_file,
+            )
+            for chunk_document in chunk_documents:
+                chunk_document.metadata["content_hash"] = content_hash
+                docs_to_add.append(chunk_document)
+
+        if docs_to_add:
+            self.db.add_documents(docs_to_add)
 
         self._cleanup_deleted_sources(repo_id, seen_sources)
+        added_or_updated = len(docs_to_add)
         print(f"Indexed {added_or_updated} updated/new code documents for {repo_id}")
 
-    def get_relevant_context(self, query: str, file_ext: str, repo_id: str, k: int = 4):
+    def get_relevant_context(
+        self,
+        query: str,
+        file_ext: str,
+        repo_id: str,
+        k: int = 4,
+        file_path: str | None = None,
+        changed_lines: list[int] | None = None,
+    ) -> str:
         lang = normalize_lang(file_ext)
+        results: list[Document] = []
 
-        results = self.db.similarity_search(
-            query, k=k, filter={"$and": [{"lang": lang}, {"repo_id": repo_id}]}
+        if file_path:
+            results.extend(
+                self._get_same_file_context(
+                    repo_id=repo_id,
+                    file_path=file_path,
+                    changed_lines=changed_lines or [],
+                )
+            )
+
+        results.extend(
+            self.db.similarity_search(
+                query, k=k, filter={"$and": [{"lang": lang}, {"repo_id": repo_id}]}
+            )
         )
 
         if not results:
@@ -87,7 +108,10 @@ class CodeRetriever:
         if not results:
             return "No relevant code context found."
 
-        return "\n---\n".join([doc.page_content for doc in results])
+        deduped_results = dedupe_documents(results)
+        return "\n---\n".join(
+            [format_retrieved_document(doc) for doc in deduped_results[:k]]
+        )
 
     def _cleanup_deleted_sources(self, repo_id: str, seen_sources: set[str]) -> None:
         existing = self.db.get(where={"repo_id": repo_id})
@@ -101,6 +125,28 @@ class CodeRetriever:
         ]
         if stale_ids:
             self.db.delete(ids=stale_ids)
+
+    def _get_same_file_context(
+        self, *, repo_id: str, file_path: str, changed_lines: list[int]
+    ) -> list[Document]:
+        existing = self.db.get(
+            where={"$and": [{"repo_id": repo_id}, {"source": file_path}]},
+            include=["documents", "metadatas"],
+        )
+        ranked_documents: list[tuple[int, Document]] = []
+
+        for content, metadata in zip(
+            existing.get("documents", []), existing.get("metadatas", [])
+        ):
+            ranked_documents.append(
+                (
+                    score_same_file_chunk(metadata, changed_lines),
+                    Document(page_content=content, metadata=metadata),
+                )
+            )
+
+        ranked_documents.sort(key=lambda item: item[0], reverse=True)
+        return [document for _, document in ranked_documents[:2]]
 
 
 def _normalize_source(root_path: str, source: str) -> str:
