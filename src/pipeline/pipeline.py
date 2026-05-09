@@ -1,9 +1,10 @@
-import os
+from __future__ import annotations
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from dotenv import load_dotenv
-
 from src.agents.review_agent import PRReviewAgent
+from src.core.config import load_settings
+from src.core.models import ReviewComment
 from src.core.processors import chunk_diffs
 from src.core.validator import validate_comments
 from src.infra.tools import fetch_pr_files_tool, post_inline_comments_tool
@@ -11,50 +12,44 @@ from src.infra.tools import fetch_pr_files_tool, post_inline_comments_tool
 
 class ReviewPipeline:
     def __init__(self):
-        load_dotenv()
-        self.repo_id = os.getenv("GITHUB_REPO")
-        if not self.repo_id:
-            raise ValueError("GITHUB_REPO not set")
-
-        self.reviewer = PRReviewAgent(repo_id=self.repo_id)
+        self.settings = load_settings()
+        self.settings.require("github_repo")
+        self.reviewer = PRReviewAgent(repo_id=self.settings.github_repo)
 
     def run(self):
         print("Starting PR review pipeline...")
 
-        # Step 1: Fetch PR files
         files = fetch_pr_files_tool.invoke({})
         if not files:
             print("No files to review.")
             return
 
-        # Step 2: Chunk diffs
         chunks = chunk_diffs(files)
+        if not chunks:
+            print("No diff chunks eligible for review.")
+            return
 
-        all_comments = []
-
-        # Step 3: Review each chunk
+        all_comments: list[ReviewComment] = []
         print(f"Processing {len(chunks)} chunks in parallel...")
 
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=self.settings.max_workers) as executor:
             futures = [
-                executor.submit(
-                    self.reviewer.review_diff, chunk["file"], chunk["lines"]
-                )
-                for chunk in chunks
+                executor.submit(self.reviewer.review_chunk, chunk) for chunk in chunks
             ]
 
             for future in as_completed(futures):
                 try:
                     all_comments.extend(future.result())
-                except Exception as e:
-                    print("Error:", e)
+                except Exception as exc:
+                    print("Error:", exc)
 
-        # Step 4: Validate comments
-        valid_comments = validate_comments(all_comments, chunks)
+        valid_comments = validate_comments(
+            all_comments,
+            chunks,
+            min_confidence=self.settings.min_comment_confidence,
+        )
 
-        # Step 5: Post comments
         result = post_inline_comments_tool.invoke({"comments": valid_comments})
-
         print("Review completed:", result)
 
 

@@ -1,170 +1,135 @@
-# 🧠 ReviewPal: AI-Powered Pull Request Review System
+# ReviewPal
 
-> 🚀 Automated, context-aware GitHub PR reviews using **RAG, LLMs, and parallel processing** — designed for real-world codebases.
+ReviewPal is an AI-powered GitHub pull request reviewer that combines diff analysis, repository retrieval, coding standards, and validation guardrails to produce higher-signal inline review comments.
 
-## 📌 Overview
+This branch upgrades the project toward a more production-oriented shape with:
+- repo-scoped incremental indexing for code and standards
+- structured comment generation with typed schemas
+- a verification pass for filtering speculative comments
+- strict added-line validation before posting to GitHub
+- repeatable unit tests and a lightweight benchmark harness
 
-ReviewPal is an intelligent code review system that analyzes GitHub Pull Requests and generates **high-quality, standards-compliant inline feedback**.
+## Problem
 
-Unlike basic LLM tools, it uses a **Retrieval-Augmented Generation (RAG) pipeline** to incorporate:
+Most LLM code reviewers break down in a few common ways:
+- they comment on the wrong lines
+- they ignore repository-specific context
+- they produce generic or low-confidence feedback
+- they are hard to evaluate offline
 
-- 📂 Repository code context  
-- 📐 Organization-specific coding standards  
-- 🧠 Language-aware understanding  
+ReviewPal is designed as a staged review pipeline instead of a single prompt so those failure modes can be controlled more explicitly.
 
-## ✨ Key Features
+## Architecture
 
-- 🤖 **AI-powered PR reviews** using Gemini LLM  
-- 🧠 **RAG-based architecture** (ChromaDB) for context-aware suggestions  
-- ⚡ **Parallel diff processing** for fast reviews (~1–2 minutes)  
-- 🎯 Comments only on **newly added lines** (zero noise)  
-- 📐 **Standards-driven reviews** (customizable per repo)  
-- 🌍 **Language-aware retrieval** (Python, TypeScript, C#)  
-- 🔁 **Incremental indexing with content hashing** (cost-efficient)  
-- 💾 **CI-integrated vector caching** for persistent performance  
-- 🧪 Robust **validation layer** (deduplication + correctness checks)  
+![ReviewPal architecture](images/ReviewPal_architecture.png)
 
+### Indexing pipeline
 
-## 🧱 Architecture
+The indexing flow prepares repository context for retrieval:
+- parse supported source files
+- attach `repo_id`, language, and content hashes
+- incrementally upsert Chroma collections
+- remove stale documents when files disappear
+- index standards independently from source code
 
-![ReviewPal architecture img](images/ReviewPal_architecture.png)
+### Review pipeline
 
-### 🔹 System Overview
+The review flow processes PR diffs in stages:
+1. fetch changed files from GitHub
+2. parse hunks into structured diff chunks
+3. retrieve relevant code context and standards
+4. generate candidate comments using a typed schema
+5. verify each candidate comment with a second pass
+6. validate line accuracy, deduplicate, and apply confidence thresholds
+7. post approved comments back to GitHub
 
-The system consists of two major flows:
+## Core components
 
----
+- [src/pipeline/pipeline.py](src/pipeline/pipeline.py) orchestrates the end-to-end review run
+- [src/agents/review_agent.py](src/agents/review_agent.py) performs retrieval, generation, and verification
+- [src/core/processors.py](src/core/processors.py) parses unified diffs into structured chunks
+- [src/core/validator.py](src/core/validator.py) enforces posting safety rules
+- [src/rag/code_retriever.py](src/rag/code_retriever.py) handles repo-aware code retrieval and incremental code indexing
+- [src/rag/standards_retriever.py](src/rag/standards_retriever.py) handles standards retrieval and incremental standards indexing
+- [scripts/run_eval.py](scripts/run_eval.py) runs a deterministic benchmark harness for core review constraints
 
-### ⚙️ 1. Indexing Pipeline (RAG Setup)
+## Getting started
 
-Runs in CI to prepare context:
-
-- Parses repository source code  
-- Indexes coding standards  
-- Generates embeddings using Gemini  
-- Stores vectors in ChromaDB  
-- Uses **content hashing** to avoid re-indexing unchanged files  
-- Supports **multi-repo isolation via `repo_id`**  
-
----
-
-### ⚡ 2. Review Pipeline
-
-Triggered on Pull Requests:
-
-1. Fetch PR diffs via GitHub API  
-2. Chunk diffs for efficient processing  
-3. Process chunks in **parallel threads**  
-4. Retrieve relevant:
-   - Code context  
-   - Coding standards  
-5. Generate review comments using LLM  
-6. Validate comments:
-   - Only on added lines  
-   - Remove duplicates  
-   - Enforce format  
-7. Post inline comments to GitHub
-
-## 🧠 Core Concepts
-
-### 🔍 Retrieval-Augmented Generation (RAG)
-
-ReviewPal enhances LLM outputs by retrieving:
-
-- Relevant code snippets from the repository  
-- Applicable coding standards  
-
-This significantly reduces hallucinations and improves accuracy.
-
----
-
-### ⚡ Parallel Processing
-
-Diff chunks are processed concurrently using multithreading, enabling:
-
-- Faster review times  
-- Scalability for large PRs  
-
----
-
-### 🧩 Language-Aware Filtering
-
-Retrieval is scoped by file type:
-E.g.
-- .py → Python context
-- .ts → TypeScript context
-- .cs → C# context
----
-
-### 🔁 Incremental Indexing
-
-Uses content hashing to:
-
-- Detect changed files  
-- Re-embed only modified content  
-- Reduce API usage and cost  
-
----
-
-## 🚀 Getting Started
-
-### 1\. Clone the repository
+### 1. Clone the repository
 
 ```bash
-git clone https://github.com//ReviewPal.git  cd ReviewPal
+git clone https://github.com/<your-account>/ReviewPal.git
+cd ReviewPal
 ```
 
-### 2\. Install dependencies
+### 2. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3\. Set up environment variables
+### 3. Configure environment variables
 
-Create a .env file with the following keys:
+Create a `.env` file:
 
 ```bash
- GEMINI_API_KEY=your_gemini_api_key
- TOKEN_GITHUB=your_github_pat
- GITHUB_REPO=username/repo-name
- PR_NUMBER=your_pull_request_number
+GEMINI_API_KEY=your_gemini_api_key
+TOKEN_GITHUB=your_github_pat
+GITHUB_REPO=owner/repo-name
+PR_NUMBER=123
+REVIEW_MODEL=gemini-2.5-flash
+EMBEDDINGS_MODEL=models/gemini-embedding-001
+MAX_REVIEW_WORKERS=4
+MIN_COMMENT_CONFIDENCE=0.65
 ```
 
-## 🧪 Usage
+### 4. Build the retrieval index
 
-Run indexing (RAG setup)
 ```bash
-python scripts/index_repo.py --path . --repo-id your-org/repo standards-path ./standards
+python scripts/index_repo.py --path . --repo-id owner/repo-name --standards-path ./standards
 ```
 
-To run the review pipeline:V
+### 5. Run the review pipeline
 
 ```bash
 python src/pipeline/pipeline.py
 ```
-## ⚙️ CI Integration (GitHub Actions)
 
-ReviewPal integrates directly into PR workflows:
+## Verification
 
- - Runs indexing with caching
- - Executes review pipeline automatically
- - Posts inline comments on PRs
+Run unit tests:
 
-## 📌 Technologies Used
+```bash
+python -m unittest discover -s tests
+```
 
-- Python 3.10+
-- LangGraph
-- LangChain
-- [Gemini (Google Generative AI)](https://ai.google.dev/)
-- [httpx](https://www.python-httpx.org/)
-- ChromaDB (Vector Store)
-- GitHub REST API
-- ThreadPoolExecutor (parallelism)
+Run the benchmark harness:
 
-## 🔮 Future Scope
+```bash
+python scripts/run_eval.py
+```
 
-- Multi-agent reviewers (security, performance, style)
-- Semantic duplicate detection
-- PR summary + risk scoring
-- Connecting PRs to JIRA and validating against acceptance criteria
+## CI integration
+
+The repository includes a GitHub Actions workflow that:
+- installs dependencies
+- restores cached vector data
+- rebuilds or updates the retrieval index
+- runs the PR review pipeline on `pull_request` events
+
+See [.github/workflows/code-review.yml](.github/workflows/code-review.yml).
+
+## Current limitations
+
+- retrieval is semantic-first and not yet symbol-aware
+- verification still relies on the same model family as generation
+- benchmark coverage is intentionally small and should grow into a proper offline evaluation set
+- there is not yet a dedicated UI for reviewer debugging or prompt tracing
+
+## Next upgrades
+
+- hybrid retrieval with lexical plus vector search
+- symbol-aware and file-neighborhood context expansion
+- category-specific passes for bugs, security, and performance
+- richer evaluation datasets with precision and false-positive tracking
+- a lightweight review console to inspect retrieved context and final comments

@@ -1,9 +1,8 @@
-import os
+from __future__ import annotations
 
-from dotenv import load_dotenv
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
-load_dotenv()
+from src.core.config import load_settings
 
 
 def normalize_lang(ext: str) -> str:
@@ -18,7 +17,9 @@ def normalize_lang(ext: str) -> str:
 
 
 def get_embeddings():
+    settings = load_settings()
+    settings.require("gemini_api_key")
     return GoogleGenerativeAIEmbeddings(
-        model="models/gemini-embedding-001",
-        google_api_key=os.getenv("GEMINI_API_KEY"),
+        model=settings.embeddings_model,
+        google_api_key=settings.gemini_api_key,
     )

@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import hashlib
 import os
 
 from langchain_chroma import Chroma
 
+from src.core.config import DB_DIR
 from src.rag.vector_store import get_embeddings, normalize_lang
 
 
@@ -15,7 +18,7 @@ class StandardsRetriever:
         self.embeddings = get_embeddings()
 
         self.db = Chroma(
-            persist_directory="./db/standards_db",
+            persist_directory=str(DB_DIR / "standards_db"),
             embedding_function=self.embeddings,
             collection_name="standards",
         )
@@ -25,8 +28,8 @@ class StandardsRetriever:
             print(f"Standards path '{path}' not found.")
             return
 
-        docs_to_add = []
         seen_files = set()
+        updated_count = 0
 
         print(f"Checking standards for repo: {repo_id}")
 
@@ -35,89 +38,62 @@ class StandardsRetriever:
                 continue
 
             file_path = os.path.join(path, file)
-
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
+            with open(file_path, "r", encoding="utf-8") as handle:
+                content = handle.read()
 
             content_hash = get_content_hash(content)
             seen_files.add(file)
+            existing = self.db.get(
+                where={"$and": [{"repo_id": repo_id}, {"source": file}]}
+            )
 
-            # Check existing doc in DB
-            existing = self.db.get(where={"repo_id": repo_id, "source": file})
-
-            if existing["metadatas"]:
+            if existing.get("metadatas"):
                 existing_hash = existing["metadatas"][0].get("content_hash")
-
                 if existing_hash == content_hash:
                     continue
+                existing_ids = existing.get("ids", [])
+                if existing_ids:
+                    self.db.delete(ids=existing_ids)
 
-                existing = self.db.get(where={"repo_id": repo_id})
-                ids = existing.get("ids", [])
-                if ids:
-                    self.db.delete(ids=ids)
-
-            # Language inference
-            filename_lower = file.lower()
-            if any(x in filename_lower for x in ["angular", "ts", "typescript"]):
-                lang = "typescript"
-            elif any(x in filename_lower for x in ["csharp", "cs"]):
-                lang = "csharp"
-            elif any(x in filename_lower for x in ["python", "py"]):
-                lang = "python"
-            else:
-                lang = "general"
-
-            docs_to_add.append(
-                {
-                    "content": content,
-                    "metadata": {
-                        "lang": lang,
+            self.db.add_texts(
+                texts=[content],
+                metadatas=[
+                    {
+                        "lang": infer_standard_language(file),
                         "repo_id": repo_id,
                         "source": file,
                         "content_hash": content_hash,
-                    },
-                }
+                    }
+                ],
             )
-
-        # Batch insert
-        if docs_to_add:
-            self.db.add_texts(
-                texts=[d["content"] for d in docs_to_add],
-                metadatas=[d["metadata"] for d in docs_to_add],
-            )
-            print(f"Indexed {len(docs_to_add)} updated/new standard files.")
-        else:
-            print("No changes detected in standards.")
+            updated_count += 1
 
         self._cleanup_deleted_files(repo_id, seen_files)
+        print(f"Indexed {updated_count} updated/new standard files.")
 
-    def _cleanup_deleted_files(self, repo_id: str, seen_files: set):
-        """
-        Removes documents from DB that no longer exist in filesystem.
-        """
+    def _cleanup_deleted_files(self, repo_id: str, seen_files: set[str]):
         try:
             existing = self.db.get(where={"repo_id": repo_id})
+            ids = existing.get("ids", [])
+            metadatas = existing.get("metadatas", [])
 
-            for meta in existing.get("metadatas", []):
-                source = meta.get("source")
-                if source and source not in seen_files:
-                    self.db.delete(where={"repo_id": repo_id, "source": source})
-                    print(f"🧹 Removed deleted standard: {source}")
+            stale_ids = [
+                item_id
+                for item_id, metadata in zip(ids, metadatas)
+                if metadata.get("source") not in seen_files
+            ]
+            if stale_ids:
+                self.db.delete(ids=stale_ids)
+        except Exception as exc:
+            print(f"Cleanup skipped: {exc}")
 
-        except Exception as e:
-            print(f"Cleanup skipped: {e}")
-
-    def get_relevant_rules(self, query: str, file_ext: str, repo_id: str):
-        """
-        Retrieves rules filtered by language AND repo_id.
-        """
+    def get_relevant_rules(self, query: str, file_ext: str, repo_id: str, k: int = 4):
         lang = normalize_lang(file_ext)
 
         results = self.db.similarity_search(
-            query, k=3, filter={"$and": [{"lang": lang}, {"repo_id": repo_id}]}
+            query, k=k, filter={"$and": [{"lang": lang}, {"repo_id": repo_id}]}
         )
 
-        # Fallback to general rules
         if not results:
             results = self.db.similarity_search(
                 query, k=2, filter={"$and": [{"lang": "general"}, {"repo_id": repo_id}]}
@@ -127,3 +103,14 @@ class StandardsRetriever:
             return "No relevant coding standards found."
 
         return "\n---\n".join([doc.page_content for doc in results])
+
+
+def infer_standard_language(filename: str) -> str:
+    filename_lower = filename.lower()
+    if any(token in filename_lower for token in ["angular", "ts", "typescript"]):
+        return "typescript"
+    if any(token in filename_lower for token in ["csharp", "c#", "cs"]):
+        return "csharp"
+    if any(token in filename_lower for token in ["python", "py"]):
+        return "python"
+    return "general"

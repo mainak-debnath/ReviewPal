@@ -47,9 +47,13 @@ pylint.out
 *.log
 *.sql
 *.sqlite
+db/
 
 # Temporary files
 *~
 
 # Secret keys
 .env
+
+# Demo outputs
+samples/output/

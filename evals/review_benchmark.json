@@ -1,0 +1,24 @@
+[
+  {
+    "name": "null-guard-missing",
+    "diff": [
+      {
+        "filename": "src/service.py",
+        "patch": "@@ -5,3 +5,4 @@\n context_line\n+result = payload['user']['id']\n context_line\n"
+      }
+    ],
+    "expected_comment_lines": [6],
+    "forbidden_comment_lines": [5, 7]
+  },
+  {
+    "name": "context-lines-rejected",
+    "diff": [
+      {
+        "filename": "src/worker.py",
+        "patch": "@@ -1,2 +1,3 @@\n context_before\n+new_code()\n context_after\n"
+      }
+    ],
+    "expected_comment_lines": [2],
+    "forbidden_comment_lines": [1, 3]
+  }
+]
