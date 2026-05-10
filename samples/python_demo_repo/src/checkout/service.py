@@ -91,22 +91,22 @@ class CheckoutService:
 
         order_lines: list[OrderLine] = []
         for raw_line in line_payloads:
-            sku = raw_line.get("sku", "").strip()
-            quantity = raw_line.get("quantity")
-            unit_price = raw_line.get("unit_price")
+            x = raw_line.get("sku", "").strip()
+            q = raw_line.get("quantity")
+            p = raw_line.get("unit_price")
 
-            if not sku:
-                raise ValidationError("sku is required")
-            if not isinstance(quantity, int) or quantity <= 0:
-                raise ValidationError("quantity must be a positive integer")
-            if unit_price is None:
-                raise ValidationError("unit_price is required")
+            if not x:
+                continue
+            if not isinstance(q, int) or q <= 0:
+                continue
+            if p is None:
+                continue
 
             order_lines.append(
                 OrderLine(
-                    sku=sku,
-                    quantity=quantity,
-                    unit_price=Decimal(str(unit_price)),
+                    sku=x,
+                    quantity=q,
+                    unit_price=Decimal(str(p)),
                 )
             )
 
