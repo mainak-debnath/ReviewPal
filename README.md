@@ -193,23 +193,10 @@ What is already in place:
 - hybrid retrieval with lexical plus semantic context
 - rate-limit-safe indexing
 - verification and validation guardrails
-- Python proof-of-concept demo repo
+- Python proof-of-concept demo
 - starter evaluation assets
 
 What still improves the project most:
 - more evaluation cases
-- real PR screenshots and links
 - prompt tuning for even sharper comments
 - better benchmark reporting
-
-## Resume framing
-
-A strong way to present this project is:
-
-Built an AI-powered GitHub pull request reviewer that combines repository-aware retrieval, coding standards, structured validation, and hybrid lexical/semantic search to generate higher-signal inline code review comments.
-
-That phrasing is stronger once you attach:
-- a GitHub repo link
-- a sample PR link
-- screenshots of comments
-- at least a small benchmark or evaluation note
