@@ -12,8 +12,10 @@ from src.rag.chunking import (
     build_chunked_documents,
     dedupe_documents,
     format_retrieved_document,
+    lexical_overlap_score,
     load_supported_source_files,
     score_same_file_chunk,
+    tokenize_for_retrieval,
 )
 from src.rag.vector_store import get_embeddings, normalize_lang
 
@@ -96,6 +98,16 @@ class CodeRetriever:
                 )
             )
 
+        if self.settings.lexical_context_limit > 0:
+            results.extend(
+                self._get_lexical_context(
+                    query=query,
+                    repo_id=repo_id,
+                    lang=lang,
+                    limit=self.settings.lexical_context_limit,
+                )
+            )
+
         results.extend(
             self.db.similarity_search(
                 query, k=k, filter={"$and": [{"lang": lang}, {"repo_id": repo_id}]}
@@ -147,6 +159,36 @@ class CodeRetriever:
 
         ranked_documents.sort(key=lambda item: item[0], reverse=True)
         return [document for _, document in ranked_documents[:2]]
+
+    def _get_lexical_context(
+        self, *, query: str, repo_id: str, lang: str, limit: int
+    ) -> list[Document]:
+        if not tokenize_for_retrieval(query):
+            return []
+
+        existing = self.db.get(
+            where={"$and": [{"repo_id": repo_id}, {"lang": lang}]},
+            include=["documents", "metadatas"],
+        )
+        ranked_documents: list[tuple[int, Document]] = []
+
+        for content, metadata in zip(
+            existing.get("documents", []), existing.get("metadatas", [])
+        ):
+            score = lexical_overlap_score(
+                query_text=query,
+                document_text=content,
+                chunk_kind=str(metadata.get("chunk_kind", "file")),
+            )
+            if score == 0:
+                continue
+
+            ranked_documents.append(
+                (score, Document(page_content=content, metadata=metadata))
+            )
+
+        ranked_documents.sort(key=lambda item: item[0], reverse=True)
+        return [document for _, document in ranked_documents[:limit]]
 
 
 def _normalize_source(root_path: str, source: str) -> str:
