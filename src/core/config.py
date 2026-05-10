@@ -36,6 +36,48 @@ class Settings(BaseModel):
         ge=0.0,
         le=1.0,
     )
+    code_chunk_size_lines: int = Field(
+        default_factory=lambda: int(os.getenv("CODE_CHUNK_SIZE_LINES", "60")),
+        ge=10,
+        le=400,
+    )
+    code_chunk_overlap_lines: int = Field(
+        default_factory=lambda: int(os.getenv("CODE_CHUNK_OVERLAP_LINES", "12")),
+        ge=0,
+        le=200,
+    )
+    max_chunks_per_file: int = Field(
+        default_factory=lambda: int(os.getenv("MAX_CHUNKS_PER_FILE", "12")),
+        ge=1,
+        le=200,
+    )
+    lexical_context_limit: int = Field(
+        default_factory=lambda: int(os.getenv("LEXICAL_CONTEXT_LIMIT", "3")),
+        ge=0,
+        le=20,
+    )
+    indexing_batch_size: int = Field(
+        default_factory=lambda: int(os.getenv("INDEXING_BATCH_SIZE", "12")),
+        ge=1,
+        le=200,
+    )
+    indexing_batch_sleep_ms: int = Field(
+        default_factory=lambda: int(os.getenv("INDEXING_BATCH_SLEEP_MS", "750")),
+        ge=0,
+        le=60000,
+    )
+    indexing_max_retries: int = Field(
+        default_factory=lambda: int(os.getenv("INDEXING_MAX_RETRIES", "5")),
+        ge=0,
+        le=20,
+    )
+    indexing_backoff_base_seconds: float = Field(
+        default_factory=lambda: float(
+            os.getenv("INDEXING_BACKOFF_BASE_SECONDS", "2.0")
+        ),
+        ge=0.0,
+        le=60.0,
+    )
 
     def require(self, *fields: str) -> None:
         missing = [field for field in fields if not getattr(self, field)]

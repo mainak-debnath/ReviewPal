@@ -1,0 +1,83 @@
+[
+  {
+    "name": "checkout-flow-pricing-and-state-regression",
+    "scenario": "Inline pricing duplication plus premature paid status",
+    "repo_subpath": "samples/python_demo_repo",
+    "patch_file": "samples/python_demo_prs/pr1_bad_checkout_flow.patch",
+    "expected_findings": [
+      {
+        "path": "src/checkout/service.py",
+        "category": "bug",
+        "severity": "high",
+        "must_mention_any": [
+          "pricingservice",
+          "discount",
+          "quantity",
+          "duplicate pricing logic"
+        ]
+      },
+      {
+        "path": "src/checkout/service.py",
+        "category": "bug",
+        "severity": "high",
+        "must_mention_any": [
+          "paid before payment",
+          "status",
+          "capture_payment",
+          "inconsistent state"
+        ]
+      },
+      {
+        "path": "src/checkout/service.py",
+        "category": "maintainability",
+        "severity": "medium",
+        "must_mention_any": [
+          "payload",
+          "customer",
+          "keyerror",
+          "validation"
+        ]
+      }
+    ],
+    "forbidden_patterns": [
+      "consider renaming",
+      "formatting",
+      "line too long"
+    ]
+  },
+  {
+    "name": "payment-and-validation-regression",
+    "scenario": "Swallowed payment failures and silent invalid line dropping",
+    "repo_subpath": "samples/python_demo_repo",
+    "patch_file": "samples/python_demo_prs/pr2_failure_handling_regression.patch",
+    "expected_findings": [
+      {
+        "path": "src/checkout/payments.py",
+        "category": "bug",
+        "severity": "high",
+        "must_mention_any": [
+          "swallow",
+          "fake receipt",
+          "paymenterror",
+          "failure"
+        ]
+      },
+      {
+        "path": "src/checkout/service.py",
+        "category": "bug",
+        "severity": "high",
+        "must_mention_any": [
+          "continue",
+          "silently",
+          "invalid line",
+          "validation"
+        ]
+      }
+    ],
+    "forbidden_patterns": [
+      "nice to have",
+      "formatting",
+      "spacing"
+    ]
+  }
+]
