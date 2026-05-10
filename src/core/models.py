@@ -42,6 +42,19 @@ class ReviewComment(BaseModel):
     )
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
 
+    @property
+    def rank_score(self) -> float:
+        severity_weights = {"high": 3.0, "medium": 2.0, "low": 1.0}
+        category_weights = {
+            "security": 1.25,
+            "bug": 1.2,
+            "performance": 1.0,
+            "maintainability": 0.85,
+        }
+        return self.confidence * severity_weights[self.severity] * category_weights[
+            self.category
+        ]
+
 
 class GeneratedCommentSet(BaseModel):
     comments: list[ReviewComment] = Field(default_factory=list)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from langchain_core.documents import Document
 
@@ -174,3 +175,48 @@ def dedupe_documents(documents: list[Document]) -> list[Document]:
         deduped.append(document)
 
     return deduped
+
+
+def tokenize_for_retrieval(text: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[A-Za-z_][A-Za-z0-9_]{2,}", text.lower())
+        if token not in STOP_WORDS
+    }
+
+
+def lexical_overlap_score(query_text: str, document_text: str, chunk_kind: str) -> int:
+    query_tokens = tokenize_for_retrieval(query_text)
+    if not query_tokens:
+        return 0
+
+    document_tokens = tokenize_for_retrieval(document_text)
+    overlap = len(query_tokens & document_tokens)
+    if overlap == 0:
+        return 0
+
+    score = overlap
+    if chunk_kind == "chunk":
+        score += 2
+    return score
+
+
+STOP_WORDS = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "that",
+    "this",
+    "return",
+    "class",
+    "true",
+    "false",
+    "none",
+    "line",
+    "file",
+    "added",
+    "code",
+    "context",
+}

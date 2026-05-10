@@ -51,6 +51,11 @@ class Settings(BaseModel):
         ge=1,
         le=200,
     )
+    lexical_context_limit: int = Field(
+        default_factory=lambda: int(os.getenv("LEXICAL_CONTEXT_LIMIT", "3")),
+        ge=0,
+        le=20,
+    )
 
     def require(self, *fields: str) -> None:
         missing = [field for field in fields if not getattr(self, field)]
