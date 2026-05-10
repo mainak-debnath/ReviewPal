@@ -70,6 +70,12 @@ class PRReviewAgent:
                 file_ext,
                 self.repo_id,
                 k=self.settings.generation_context_limit,
+                file_path=chunk.file_path,
+                changed_lines=[
+                    line.new_line_number
+                    for line in chunk.added_lines
+                    if line.new_line_number is not None
+                ],
             ),
             standards_context=self.standards_retriever.get_relevant_rules(
                 query,

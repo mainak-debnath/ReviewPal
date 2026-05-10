@@ -19,7 +19,9 @@ def validate_comments(
     seen: set[tuple[str, int, str]] = set()
     valid_lines_map = build_added_line_lookup(chunks)
 
-    for comment in comments:
+    ranked_comments = sorted(comments, key=lambda comment: comment.rank_score, reverse=True)
+
+    for comment in ranked_comments:
         body = comment.body.strip()
         filename = comment.path
         line_num = comment.line
