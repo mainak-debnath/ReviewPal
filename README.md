@@ -1,6 +1,7 @@
 # ReviewPal
 
 ReviewPal is an AI-powered GitHub pull request reviewer that uses repository code context, coding standards, and validation guardrails to generate higher-signal inline review comments.
+ReviewPal is an AI-powered GitHub pull request reviewer that uses repository code context, coding standards, and validation guardrails to generate higher-signal inline review comments.
 
 It is built to answer a practical question:
 
@@ -10,6 +11,29 @@ Can an LLM reviewer behave more like a useful SaaS code review product and less 
 
 Naive LLM review systems usually fail in predictable ways:
 - they comment on the wrong lines
+- they miss the local business flow around a change
+- they ignore repository-specific standards
+- they produce generic or low-confidence comments
+
+ReviewPal addresses those problems with:
+- structured diff parsing
+- repository indexing with persisted vector search
+- generic bounded code chunking with line-range metadata
+- same-file context prioritization
+- hybrid retrieval that combines semantic and lexical matching
+- standards-aware prompting
+- verification and validation before posting comments
+
+## Why this project matters
+
+This is not just an LLM wrapper. It is an engineering project around:
+- retrieval quality
+- review precision
+- runtime reliability
+- evaluation
+- developer workflow integration
+
+That is the part that makes it resume-worthy for SDE 2 roles.
 - they miss the local business flow around a change
 - they ignore repository-specific standards
 - they produce generic or low-confidence comments
@@ -185,31 +209,33 @@ python src/pipeline/pipeline.py
 python -m unittest discover -s tests
 ```
 
-## Current state
+Run the benchmark harness:
 
-What is already in place:
-- structured review pipeline
-- repository-aware retrieval
-- hybrid retrieval with lexical plus semantic context
-- rate-limit-safe indexing
-- verification and validation guardrails
-- Python proof-of-concept demo repo
-- starter evaluation assets
+```bash
+python scripts/run_eval.py
+```
 
-What still improves the project most:
-- more evaluation cases
-- real PR screenshots and links
-- prompt tuning for even sharper comments
-- better benchmark reporting
+## CI integration
 
-## Resume framing
+The repository includes a GitHub Actions workflow that:
+- installs dependencies
+- restores cached vector data
+- rebuilds or updates the retrieval index
+- runs the PR review pipeline on `pull_request` events
 
-A strong way to present this project is:
+See [.github/workflows/code-review.yml](.github/workflows/code-review.yml).
 
-Built an AI-powered GitHub pull request reviewer that combines repository-aware retrieval, coding standards, structured validation, and hybrid lexical/semantic search to generate higher-signal inline code review comments.
+## Current limitations
 
-That phrasing is stronger once you attach:
-- a GitHub repo link
-- a sample PR link
-- screenshots of comments
-- at least a small benchmark or evaluation note
+- retrieval is semantic-first and not yet symbol-aware
+- verification still relies on the same model family as generation
+- benchmark coverage is intentionally small and should grow into a proper offline evaluation set
+- there is not yet a dedicated UI for reviewer debugging or prompt tracing
+
+## Next upgrades
+
+- hybrid retrieval with lexical plus vector search
+- symbol-aware and file-neighborhood context expansion
+- category-specific passes for bugs, security, and performance
+- richer evaluation datasets with precision and false-positive tracking
+- a lightweight review console to inspect retrieved context and final comments
