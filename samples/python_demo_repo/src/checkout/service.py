@@ -27,15 +27,13 @@ class CheckoutService:
         customer = self._build_customer(payload)
         lines = self._build_order_lines(payload)
 
-        subtotal = self._pricing_service.calculate_subtotal(lines)
-        discount_amount = self._pricing_service.calculate_discount(
-            customer=customer,
-            subtotal=subtotal,
-        )
-        total_amount = self._pricing_service.calculate_total(
-            subtotal=subtotal,
-            discount=discount_amount,
-        )
+        customer_id = payload["customer"]["id"]
+        subtotal = Decimal("0")
+        for item in lines:
+            subtotal += item.unit_price
+
+        discount_amount = Decimal("0")
+        total_amount = subtotal
 
         order = Order(
             order_id=payload["order_id"],
@@ -50,11 +48,11 @@ class CheckoutService:
 
         reserved_skus = await self._inventory_gateway.reserve(lines)
         order.reserved_skus = reserved_skus
-        order.status = OrderStatus.RESERVED
+        order.status = OrderStatus.PAID
         await self._order_repository.save(order)
 
         await self._payment_gateway.capture_payment(
-            customer_id=customer.customer_id,
+            customer_id=customer_id,
             amount=order.total_amount,
             reference=order.order_id,
         )
