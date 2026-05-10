@@ -5,7 +5,8 @@ import os
 
 from langchain_chroma import Chroma
 
-from src.core.config import DB_DIR
+from src.core.config import DB_DIR, load_settings
+from src.rag.indexing import batched, run_rate_limited_write, sleep_between_batches
 from src.rag.vector_store import get_embeddings, normalize_lang
 
 
@@ -15,6 +16,7 @@ def get_content_hash(content: str) -> str:
 
 class StandardsRetriever:
     def __init__(self):
+        self.settings = load_settings()
         self.embeddings = get_embeddings()
 
         self.db = Chroma(
@@ -29,7 +31,7 @@ class StandardsRetriever:
             return
 
         seen_files = set()
-        updated_count = 0
+        docs_to_add = []
 
         print(f"Checking standards for repo: {repo_id}")
 
@@ -55,18 +57,19 @@ class StandardsRetriever:
                 if existing_ids:
                     self.db.delete(ids=existing_ids)
 
-            self.db.add_texts(
-                texts=[content],
-                metadatas=[
-                    {
+            docs_to_add.append(
+                {
+                    "text": content,
+                    "metadata": {
                         "lang": infer_standard_language(file),
                         "repo_id": repo_id,
                         "source": file,
                         "content_hash": content_hash,
-                    }
-                ],
+                    },
+                }
             )
-            updated_count += 1
+
+        updated_count = self._add_texts_in_batches(docs_to_add)
 
         self._cleanup_deleted_files(repo_id, seen_files)
         print(f"Indexed {updated_count} updated/new standard files.")
@@ -103,6 +106,22 @@ class StandardsRetriever:
             return "No relevant coding standards found."
 
         return "\n---\n".join([doc.page_content for doc in results])
+
+    def _add_texts_in_batches(self, docs_to_add: list[dict]) -> int:
+        if not docs_to_add:
+            return 0
+
+        total_written = 0
+        for batch in batched(docs_to_add, self.settings.indexing_batch_size):
+            run_rate_limited_write(
+                lambda batch=batch: self.db.add_texts(
+                    texts=[item["text"] for item in batch],
+                    metadatas=[item["metadata"] for item in batch],
+                )
+            )
+            total_written += len(batch)
+            sleep_between_batches()
+        return total_written
 
 
 def infer_standard_language(filename: str) -> str:

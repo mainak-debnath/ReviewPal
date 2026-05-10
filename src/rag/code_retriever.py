@@ -17,6 +17,7 @@ from src.rag.chunking import (
     score_same_file_chunk,
     tokenize_for_retrieval,
 )
+from src.rag.indexing import batched, run_rate_limited_write, sleep_between_batches
 from src.rag.vector_store import get_embeddings, normalize_lang
 
 
@@ -70,11 +71,9 @@ class CodeRetriever:
                 chunk_document.metadata["content_hash"] = content_hash
                 docs_to_add.append(chunk_document)
 
-        if docs_to_add:
-            self.db.add_documents(docs_to_add)
+        added_or_updated = self._add_documents_in_batches(docs_to_add)
 
         self._cleanup_deleted_sources(repo_id, seen_sources)
-        added_or_updated = len(docs_to_add)
         print(f"Indexed {added_or_updated} updated/new code documents for {repo_id}")
 
     def get_relevant_context(
@@ -189,6 +188,17 @@ class CodeRetriever:
 
         ranked_documents.sort(key=lambda item: item[0], reverse=True)
         return [document for _, document in ranked_documents[:limit]]
+
+    def _add_documents_in_batches(self, docs_to_add: list) -> int:
+        if not docs_to_add:
+            return 0
+
+        total_written = 0
+        for batch in batched(docs_to_add, self.settings.indexing_batch_size):
+            run_rate_limited_write(lambda batch=batch: self.db.add_documents(batch))
+            total_written += len(batch)
+            sleep_between_batches()
+        return total_written
 
 
 def _normalize_source(root_path: str, source: str) -> str:
